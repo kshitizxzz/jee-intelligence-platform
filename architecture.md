@@ -2,54 +2,27 @@
 
 ## Overall idea
 
-A Streamlit app that takes a student's JEE Advanced rank, category, and gender pool and gives them four things no existing predictor does well: an explainable, ranked list of realistic IIT branch choices; a round-by-round simulation of JoSAA's actual seat-allocation algorithm with Freeze/Float/Slide advice; a direct, 9-year historical view of what rank bands like theirs actually got; and a plain-English branch matcher for students who don't yet know the jargon. Everything runs as one Python app — no separate backend, no database server, no JS frontend.
+Takes a student's JEE Advanced rank, category, and gender pool and gives them a ranked list of realistic IIT branch choices, a round-by-round simulation of how JoSAA's actual seat allocation works, a plain historical lookup of what rank bands like theirs got in past years, and a branch matcher for people who don't know the jargon yet. It's one Python app — Streamlit does the routing and UI, so there's no separate backend or database to run.
 
 ## Layers
 
-**1. Data layer**
-Architecture: one consolidated CSV (124,861 rows) — every IIT, every round, every branch, every Seat Type x Gender combo, 2016-2024 — plus a small static NIRF ranking table for institute-quality scoring. Loaded into memory at app start; no database needed at this size.
-Tech stack: Python, pandas, CSV (~23 MB).
-Skills: data cleaning/ETL, DSA (sorting, needed before binary search in layer 5).
+**1. Data layer.** One consolidated CSV, 124,861 rows, every IIT/round/branch/Seat-Type x Gender combo from 2016-2024, plus a small static NIRF ranking table for institute-quality scoring. It's about 23 MB, so it just gets loaded into memory at app start rather than needing a real database. Built with Python and pandas; sorting the data here is also what makes the binary search in layer 5 possible.
 
-**2. Feature engineering layer**
-Architecture: raw rank rows turned into model-ready features — rank percentile within year, a branch-demand proxy from cutoff compression, NIRF-based desirability score, one-hot category/gender encodings, year-over-year deltas.
-Tech stack: pandas, numpy, scikit-learn preprocessing.
-Skills: feature engineering, basic statistics.
+**2. Feature engineering layer.** Turns the raw rank rows into model-ready features: rank percentile within a year, a branch-demand proxy from how tight the cutoffs are, a NIRF-based desirability score, one-hot category/gender encodings, year-over-year deltas. Pandas, numpy, and a bit of scikit-learn preprocessing.
 
-**3. ML ranking layer (Choice-List Builder)**
-Architecture: given rank + category + gender, an ensemble (KNN for "similar historical admits," Decision Tree/Random Forest/AdaBoost for eligibility) scores every institute-branch pair on eligibility x desirability, blended via a user-adjustable prestige-vs-branch-fit slider, output as a ranked, explainable list. A small MLPClassifier (2 hidden layers, 32→16 neurons) is trained alongside as a benchmark-only comparison — it is scored and shown in the UI but deliberately excluded from production inference. Measured result: the MLP edges out the classical ensemble on held-out accuracy (~83% vs ~79%), but the ensemble's per-model votes stay easier to reason about and debug for a high-stakes decision a 17-year-old is making — an accuracy-vs-interpretability tradeoff that was measured, not assumed.
-Tech stack: scikit-learn (KNeighborsClassifier, DecisionTreeClassifier, RandomForestClassifier, AdaBoostClassifier, MLPClassifier), joblib.
-Skills: ML — classification, ensembling, evaluation, deep learning (MLP) benchmarking.
+**3. ML ranking layer (Choice-List Builder).** Given a rank, category, and gender, an ensemble of KNN, Decision Tree, Random Forest, and AdaBoost scores every institute-branch pair on eligibility, then blends that with desirability using a slider the user controls. I also trained a small MLPClassifier (2 hidden layers, 32→16 neurons) alongside it just as a benchmark — it actually beats the ensemble on held-out accuracy (~83% vs ~79%), but I kept the ensemble in production since its per-model votes are much easier to reason about for a decision like this than an MLP's hidden layers would be. Built with scikit-learn (KNeighborsClassifier, DecisionTreeClassifier, RandomForestClassifier, AdaBoostClassifier, MLPClassifier) and joblib for serialization.
 
-**4. NLP layer (Branch Matcher)**
-Architecture: a hand-built topic lexicon (~28 topic keys, e.g. "ai_data," "mechanical," "biotech_bio") expands each formal JEE branch name into plain-language synonyms and concepts, stripping degree-duration boilerplate first. A `TfidfVectorizer` is fit over the expanded texts; a free-text user query is vectorized the same way and ranked against every branch via cosine similarity, with matched topic tags surfaced for explainability. Scikit-learn only — no embedding/transformer models — to stay light enough for Streamlit Cloud.
-Tech stack: scikit-learn (TfidfVectorizer, cosine_similarity), pure Python (lexicon, regex cleanup).
-Skills: NLP — lexicon-based query expansion, TF-IDF, vector similarity search.
+**4. NLP layer (Branch Matcher).** A topic lexicon I built by hand (around 28 topics — "ai_data," "mechanical," "biotech_bio," etc.) expands each formal branch name into plain-language synonyms, after stripping out degree-duration boilerplate. A TfidfVectorizer runs over the expanded text, and a free-text query gets ranked against every branch via cosine similarity, with the matched topics shown so it's clear why something matched. Scikit-learn only, no embedding models, mostly to keep it light enough for free hosting.
 
-**5. Algorithms layer — the differentiator**
-Architecture: three from-scratch components, no library shortcuts: binary search over sorted closing-rank arrays for O(log n) rank-band lookup; a reimplementation of JoSAA's real seat-allocation algorithm (multi-round deferred acceptance / Gale-Shapley variant) to simulate round-by-round movement and drive the Freeze/Float/Slide advisor; a Trie for institute/branch autocomplete.
-Tech stack: pure Python.
-Skills: DSA — binary search, stable-matching/graph algorithms, tries.
+**5. Algorithms layer.** This is the part with no library shortcuts: binary search over sorted closing-rank arrays for O(log n) lookup, a from-scratch reimplementation of JoSAA's actual multi-round deferred-acceptance (Gale-Shapley) algorithm to simulate round-by-round seat movement, and a trie for institute/branch autocomplete. All pure Python.
 
-**6. Forecasting layer**
-Architecture: per institute-branch-category-gender, a 9-year closing-rank time series fit with linear regression to project next year's likely closing-rank band with a range.
-Tech stack: scikit-learn (LinearRegression), numpy.
-Skills: ML — regression, light time-series reasoning.
+**6. Forecasting layer.** For each institute-branch-category-gender combo, fits a linear regression over its closing-rank history (up to 9 years) to project next year's likely band. Scikit-learn's LinearRegression plus numpy.
 
-**7. Application/UI layer**
-Architecture: one Streamlit multi-page app — pages for Choice-List Builder, Round Simulator, Rank-Band Explorer, Trend Forecaster, Branch Matcher — with cached data/model loading and interactive charts.
-Tech stack: Streamlit (`st.cache_data`, `st.cache_resource`, `pages/` for multipage), Plotly for charts.
-Skills: Python only — no HTML/CSS/JS required.
+**7. Application/UI layer.** A Streamlit multi-page app — Choice-List Builder, Round Simulator, Rank-Band Explorer, Trend Forecaster, Branch Matcher — with cached data/model loading and Plotly charts. No HTML/CSS/JS anywhere.
 
-**8. Persistence layer**
-Architecture: trained models and precomputed structures (sorted rank arrays, trie, fitted TF-IDF matcher) are built once and serialized/cached, then loaded at startup instead of being retrained per request.
-Tech stack: joblib/pickle, `st.cache_resource`, flat files committed to the repo.
-Skills: basic packaging discipline.
+**8. Persistence layer.** Models and precomputed structures (sorted rank arrays, the trie, the fitted TF-IDF matcher) get built once and cached/serialized rather than rebuilt on every request. Joblib/pickle plus `st.cache_resource`, with the artifact files committed to the repo.
 
-**9. Deployment layer**
-Architecture: push the app, data, and serialized models to a public GitHub repo, connect it to Streamlit Community Cloud. Every `git push` auto-redeploys.
-Tech stack: GitHub, Streamlit Community Cloud.
-Skills: git basics only.
+**9. Deployment layer.** Push to GitHub, connect to Streamlit Community Cloud, and every push to `main` redeploys automatically.
 
 ## Deployment model
 
