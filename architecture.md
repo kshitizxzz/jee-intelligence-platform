@@ -29,7 +29,7 @@ Skills: NLP — lexicon-based query expansion, TF-IDF, vector similarity search.
 **5. Algorithms layer — the differentiator**
 Architecture: three from-scratch components, no library shortcuts: binary search over sorted closing-rank arrays for O(log n) rank-band lookup; a reimplementation of JoSAA's real seat-allocation algorithm (multi-round deferred acceptance / Gale-Shapley variant) to simulate round-by-round movement and drive the Freeze/Float/Slide advisor; a Trie for institute/branch autocomplete.
 Tech stack: pure Python.
-Skills: DSA — binary search, stable-matching/graph algorithms, tries. This is the showcase layer for a resume.
+Skills: DSA — binary search, stable-matching/graph algorithms, tries.
 
 **6. Forecasting layer**
 Architecture: per institute-branch-category-gender, a 9-year closing-rank time series fit with linear regression to project next year's likely closing-rank band with a range.
@@ -51,9 +51,9 @@ Architecture: push the app, data, and serialized models to a public GitHub repo,
 Tech stack: GitHub, Streamlit Community Cloud.
 Skills: git basics only.
 
-## On "I don't know CI/CD"
+## Deployment model
 
-You don't need any. Streamlit Community Cloud's deploy model *is* git-push-to-deploy — there's no pipeline to write, no Docker, no servers. Connect the repo once in the Streamlit Cloud dashboard; every push to `main` rebuilds and redeploys automatically. That's the entire "CI/CD" for this project.
+No CI/CD pipeline is needed. Streamlit Community Cloud's deploy model is git-push-to-deploy — no Docker, no servers to manage. The repo is connected once in the Streamlit Cloud dashboard; every push to `main` rebuilds and redeploys automatically.
 
 ## Directory structure
 
