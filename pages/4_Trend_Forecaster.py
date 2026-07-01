@@ -3,7 +3,7 @@ import streamlit as st
 
 from src.models.train_forecaster import final_round_series
 from src.utils.helpers import (
-    load_forecaster_table, load_institute_trie, SEAT_TYPES, GENDERS,
+    load_forecaster_table, load_institute_trie, load_institute_lookup, SEAT_TYPES, GENDERS,
     format_rank, institute_short_name, load_raw
 )
 from src.algorithms.trie import Trie
@@ -21,9 +21,11 @@ def cached_series():
 raw = load_raw()
 forecast = load_forecaster_table()
 institute_trie = load_institute_trie()
+institute_lookup = load_institute_lookup()
 
 prefix = st.text_input("Search institute (autocomplete via Trie)", value="IIT Madras")
-matches = institute_trie.autocomplete(prefix.lower(), limit=15) if prefix else sorted(raw["Institute"].unique())
+short_matches = institute_trie.autocomplete(prefix.lower(), limit=15) if prefix else sorted(institute_lookup)
+matches = [institute_lookup[s] for s in short_matches] if short_matches else sorted(raw["Institute"].unique())
 institute = st.selectbox("Institute", matches or sorted(raw["Institute"].unique()), format_func=institute_short_name)
 
 branch_options = sorted(raw.loc[raw["Institute"] == institute, "Branch"].unique())

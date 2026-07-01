@@ -6,7 +6,7 @@ from src.algorithms.deferred_acceptance import (
 )
 from src.algorithms.trie import Trie
 from src.utils.helpers import (
-    load_raw, load_features, load_institute_trie, SEAT_TYPES, GENDERS,
+    load_raw, load_features, load_institute_trie, load_institute_lookup, SEAT_TYPES, GENDERS,
     format_rank, institute_short_name, YEARS
 )
 
@@ -16,15 +16,15 @@ st.caption("Grounded in real round-by-round movement, plus a from-scratch JoSAA 
 
 raw = load_raw()
 institute_trie = load_institute_trie()
+institute_lookup = load_institute_lookup()
 
 st.subheader("1. Real historical round-by-round trend")
 
 col_a, col_b = st.columns([2, 1])
 with col_a:
     prefix = st.text_input("Search institute (autocomplete via Trie)", value="IIT Bombay")
-matches = institute_trie.autocomplete(prefix.lower(), limit=15) if prefix else sorted(raw["Institute"].unique())
-if not matches:
-    matches = sorted(raw["Institute"].unique())
+short_matches = institute_trie.autocomplete(prefix.lower(), limit=15) if prefix else sorted(institute_lookup)
+matches = [institute_lookup[s] for s in short_matches] if short_matches else sorted(raw["Institute"].unique())
 institute = st.selectbox("Institute", matches, format_func=institute_short_name)
 
 branch_options = sorted(raw.loc[raw["Institute"] == institute, "Branch"].unique())

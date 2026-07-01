@@ -47,7 +47,16 @@ def load_rank_lookup() -> RankLookup:
 
 @st.cache_resource
 def load_institute_trie() -> Trie:
-    return Trie().build(load_raw()["Institute"].unique().tolist())
+    """Trie keyed on the short display name (e.g. 'IIT Bombay') so that typing the
+    short form actually matches -- the raw data stores full names like
+    'Indian Institute of Technology Bombay', which users don't type."""
+    return Trie().build([institute_short_name(x) for x in load_raw()["Institute"].unique().tolist()])
+
+
+@st.cache_resource
+def load_institute_lookup() -> dict:
+    """Map short display name -> full raw institute name used for filtering the data."""
+    return {institute_short_name(x): x for x in load_raw()["Institute"].unique().tolist()}
 
 
 @st.cache_resource
